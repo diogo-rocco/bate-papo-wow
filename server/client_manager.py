@@ -2,29 +2,32 @@ from typing import NoReturn
 import rpyc
 import socket
 
-
+#Objeto com todos os clientes conectados ao servidor. É um dicionário onde as chaves são nomes de usuário e os valores são os seus endereços de ip e porta
 clients = {}
+
+#Lista de usuários que estão ativos
 active_users = []
+
+#Lista de usuários que estão inativos
 inactive_users = []
+
+#Lista de usuários que estão em uma conversa
 busy_users = []
 
+#Camada responsavel por centralizar as informações que cada cliente pode querer um sobre o outro
 class ClientManager(rpyc.Service):
 
-    def __init__(self) -> None:
-        super().__init__()
-        #o objeto clients armazena todos os clientes do servico, as chaves sao os nomes de usuarios e os valores sao o endereco de IP e o status (ativo/inativo/em conversa) do usuario
-
-    #inicia a conexao com o cliente e envia para ele uma lista com todos os nomes de usuario sendo usados
     def on_connect(self, conn):
-        print(clients)
         print("Conexao iniciada:")
 
     def on_disconnect(self, conn):
         print("Conexao finalizada:")
 
+    #Retorna a lista de todos os usuários
     def exposed_get_userlist(self):
         return clients.keys()
     
+    #verifica se o nome de usuário já está em uso, caso esteja, retorna um erro, caso contrário, cria o novo usuário
     def exposed_set_user(self, new_user):
         if new_user in clients.keys():
             return 1, ''
@@ -32,6 +35,7 @@ class ClientManager(rpyc.Service):
             clients[new_user] = {}
             return 0, new_user
 
+    #Registra o IP e a porta do lado passivo da aplicação da camada de gerenciamento de conversas do cliente
     def exposed_register(self, user, ip, porta):
         active_users.append(user)
         clients[user]['ip'] = ip
@@ -57,16 +61,8 @@ class ClientManager(rpyc.Service):
     def exposed_get_active_users(self):
         return active_users
     
+    #Verifica se o usuário que o cliente está solicitando a conversa é valido (se ele existe, se ele está ativo e não está em uma conversa) e retorna o código de erro, no caso de erro, ou o ip e porta do usuário que foi solicitado
     def exposed_chat_request(self, reciever):
-        '''
-        1) conferir se o reciever existe, se não exister, avisar pro sender OK
-        2) conferir se o reciever está ativo, se não estiver, avisar pro sender OK
-        3) conferir se o reciever está numa conversa, se estiver, avisar pro sender OK
-        4) enviar o convite pro reciever
-        5) o reciever pode aceitar ou não (isso vai ser implementado em outro lugar (usar select no while do client?))
-        5.1) se o reciever aceitar a conversa começa
-        5.2) se o reciever recusar, avisar o sender
-        '''
         if reciever not in clients.keys():
             return 1
         if reciever in inactive_users:
@@ -76,7 +72,7 @@ class ClientManager(rpyc.Service):
         else:
             return clients[reciever]['ip'], clients[reciever]['porta']
         
-
+    #Remove o usuário da lista de usuários no servidor
     def exposed_remove_user(self, user):
         del clients[user]
         if user in active_users:

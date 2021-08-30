@@ -4,8 +4,10 @@ import socket
 from client_interface import clientInterface
 from sys import stdin
 
+#Classe responsavel pela comunicação peer-to-peer entre os usuários(clientes)
 class ChatManager():
-
+    
+    #Instanciação da classe, onde o socket dos lados passivos e ativos são iniciados
     def __init__(self) -> None:
         self.interface = clientInterface()
         self.passive = socket.socket()
@@ -13,6 +15,7 @@ class ChatManager():
         self.host = ''
         reciever_initiated = False
         while not reciever_initiated:
+            #um try except é usado para garantir que não tentemos nos conectar em portas já em uso
             try:
                 self.passive.bind((self.host, self.porta))
                 reciever_initiated = True
@@ -22,13 +25,13 @@ class ChatManager():
         self.passive.listen(1)
         self.active = socket.socket()
     
+    #Envia um convite de conversa para o outro cliente
     def send_invitation(self, sender, reciever_ip, reciever_porta, reciever_name):
         self.active.connect((reciever_ip, reciever_porta))
         self.active.send(sender.encode('utf-8'))
-        #TODO permitir o usuario cancelar o envio de um convite
         accepted = str(self.active.recv(1024), 'utf-8')
         self.peer_name = reciever_name
-        
+        #recebe os códigos de aceite(1) ou não aceite(0) e toma as ações de acordo
         if accepted == '0':
             self.active.close()
             self.active = socket.socket()
@@ -39,6 +42,7 @@ class ChatManager():
             self.active = socket.socket()
 
 
+    #Responde o convite enviado pelo método send_invitation
     def answer_invitation(self):
         self.peer_sock, peer_address = self.passive.accept()
         self.peer_name = str(self.peer_sock.recv(1024), 'utf-8')
@@ -54,12 +58,15 @@ class ChatManager():
             self.peer_name = ''
 
 
+    #Define o fluxo de uma conversa entre dois clientes (recebe como parametro o socket (ativo ou passivo) que está sendo usado para a conversa)
     def chat(self, sock):
         self.interface.start_chat()
         input_list = [stdin, sock]
         while True:
+            #Usa um select para que o cliente possa tanto receber quanto enviar as mensagens para o outro cliente
             read, write, excep = select(input_list, [], [])
             for ready in read:
+                #Quando a mensagem veio do peer ela é exibida para o usuário, e caso a conexão seja encerrada, fecha o socket
                 if ready == sock:
                     try:
                         msg = str(sock.recv(1024), 'utf-8')
@@ -74,6 +81,7 @@ class ChatManager():
                         self.interface.chat_ended()
                         return
                 
+                #Quando a mensagem vem do usuário, ela é enviada para o peer
                 elif ready == stdin:
                     msg = input()
                     if msg == '/fim':
